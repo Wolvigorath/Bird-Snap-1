@@ -90,8 +90,8 @@
         
         <div class="settings-panel">
             <div class="setting-row">
-                <label>Zoom (przybliżenie): <span id="val-zoom">0.50</span></label>
-                <input type="range" id="cfg-zoom" min="0.3" max="1.5" step="0.05" value="0.50">
+                <label>Zoom (przybliżenie): <span id="val-zoom">0.30</span></label>
+                <input type="range" id="cfg-zoom" min="0.05" max="1.2" step="0.05" value="0.30">
             </div>
             <div class="setting-row">
                 <label>Czas ucieczki: <span id="val-timer">500</span></label>
@@ -153,16 +153,15 @@
     const highscoreList = document.getElementById('highscore-list');
     const playerNameInput = document.getElementById('player-name');
 
-    // Parametry konfiguracyjne
     let cfgTimer = 500;
     let cfgCount = 4;
     let cfgDrain = 0.05;
-    let currentZoom = 0.50; // Zmienione z const na let
+    let currentZoom = 0.30; 
 
     document.getElementById('cfg-zoom').addEventListener('input', (e) => {
         currentZoom = parseFloat(e.target.value);
         document.getElementById('val-zoom').innerText = currentZoom.toFixed(2);
-        if(!gameActive) drawScene(); // Podgląd zoomu w tle
+        if(!gameActive) drawScene(); 
     });
 
     document.getElementById('cfg-timer').addEventListener('input', (e) => {
@@ -181,6 +180,18 @@
     let width, height;
     const WORLD_W = 3000;
     const WORLD_H = 1800;
+
+    let bgLoaded = false;
+    const bgImg = new Image();
+    bgImg.onload = () => { bgLoaded = true; if (!gameActive) drawScene(); };
+    bgImg.src = "background.png";
+
+    const birdSets = [];
+    for(let i = 1; i <= 6; i++) {
+        let p = new Image(); p.src = 'bird' + i + '.png';
+        let f = new Image(); f.src = 'bird' + i + '2.png';
+        birdSets.push({ perched: p, flying: f });
+    }
     
     let score = 0;
     let level = 1;
@@ -190,24 +201,14 @@
     let currentCamX = WORLD_W / 2;
     let currentCamY = WORLD_H / 2;
 
-    const birdColors = [
-        'rgb(173, 216, 230)', 
-        'rgb(76, 175, 80)',   
-        'rgb(255, 235, 59)',  
-        'rgb(244, 67, 54)',   
-        'rgb(233, 30, 99)',   
-        'rgb(255, 152, 0)'    
-    ];
-
     let birds = [];
-    let huntTargetColor = null;
+    let huntTargetSet = null;
 
     let spawnCooldown = 0;
     let shutterState = 'idle'; 
     let shutterVal = 0; 
 
     let trees = [];
-    let clouds = [];
     let leaves = [];
 
     let joyActive = false;
@@ -324,20 +325,12 @@
     }
 
     function initEnvironment() {
-        trees = []; clouds = [];
+        trees = [];
         for(let i=0; i<30; i++) {
             trees.push({
                 x: Math.random() * WORLD_W,
                 y: WORLD_H - 100 - (Math.random() * 400),
                 s: 180 + Math.random() * 300
-            });
-        }
-        for(let i=0; i<12; i++) {
-            clouds.push({
-                x: Math.random() * WORLD_W,
-                y: 100 + Math.random() * 500,
-                s: 150 + Math.random() * 250,
-                vx: 0.2 + Math.random() * 0.5
             });
         }
     }
@@ -384,7 +377,7 @@
         joystickZone.style.display = 'block';
         leaves = [];
         birds = [];
-        huntTargetColor = null;
+        huntTargetSet = null;
         currentCamX = WORLD_W / 2;
         currentCamY = WORLD_H / 2;
         resize();
@@ -427,7 +420,7 @@
         if (hitBirdIdx !== -1) {
             let shotBird = birds[hitBirdIdx];
             
-            if (shotBird.color === huntTargetColor) {
+            if (shotBird.birdSet === huntTargetSet) {
                 playSound('success');
                 score += Math.round(10 * level);
                 daylight = Math.min(100, daylight + 15);
@@ -441,7 +434,7 @@
             }
             
             scoreEl.innerText = score;
-            huntTargetColor = null;
+            huntTargetSet = null;
             spawnCooldown = 10; 
 
             birds.forEach(b => {
@@ -456,27 +449,17 @@
         }
     }
 
-    function getColor(r, g, b) {
-        let f = Math.max(0.15, daylight / 100); 
-        return `rgb(${Math.floor(r*f)}, ${Math.floor(g*f)}, ${Math.floor(b*f)})`;
-    }
-
     function drawBird(birdObj) {
         ctx.save();
         ctx.translate(birdObj.x, birdObj.y);
         
         if (birdObj.vx < 0 || (birdObj.vx === 0 && Math.sin(birdObj.x) > 0)) ctx.scale(-1, 1); 
         
-        ctx.fillStyle = birdObj.color;
-        ctx.beginPath(); ctx.arc(0, 0, birdObj.size, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'black';
-        ctx.beginPath(); ctx.arc(birdObj.size * 0.3, -birdObj.size * 0.2, birdObj.size * 0.2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'orange';
-        ctx.beginPath(); 
-        ctx.moveTo(birdObj.size * 0.7, -birdObj.size * 0.1); 
-        ctx.lineTo(birdObj.size * 1.5, 0); 
-        ctx.lineTo(birdObj.size * 0.7, birdObj.size * 0.3); 
-        ctx.fill();
+        let currentImg = birdObj.perched ? birdObj.birdSet.perched : birdObj.birdSet.flying;
+        if (currentImg && currentImg.complete && currentImg.naturalWidth !== 0) {
+            let imgSize = birdObj.size * 5; 
+            ctx.drawImage(currentImg, -imgSize/2, -imgSize/2, imgSize, imgSize);
+        }
         ctx.restore();
     }
 
@@ -488,33 +471,16 @@
         ctx.scale(currentZoom, currentZoom);
         ctx.translate(-currentCamX, -currentCamY);
 
-        ctx.fillStyle = getColor(135, 206, 235);
-        ctx.fillRect(-2000, -2000, WORLD_W + 4000, WORLD_H + 4000);
+        ctx.fillStyle = "#87ceeb";
+        ctx.fillRect(-10000, -10000, WORLD_W + 20000, WORLD_H + 20000);
 
-        ctx.fillStyle = getColor(220, 220, 220);
-        clouds.forEach(c => {
-            if(gameActive) c.x += c.vx;
-            if(c.x - c.s > WORLD_W) c.x = -c.s;
-            ctx.beginPath(); ctx.arc(c.x, c.y, c.s, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(c.x + c.s*0.8, c.y - c.s*0.2, c.s*0.8, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(c.x - c.s*0.8, c.y + c.s*0.1, c.s*0.6, 0, Math.PI*2); ctx.fill();
-        });
-
-        ctx.fillStyle = getColor(56, 142, 60);
-        ctx.fillRect(-2000, WORLD_H - 100, WORLD_W + 4000, 2000);
-
-        trees.forEach(t => {
-            ctx.fillStyle = getColor(78, 52, 46); 
-            ctx.fillRect(t.x - t.s/10, t.y - t.s, t.s/5, t.s);
-            ctx.fillStyle = getColor(46, 125, 50); 
-            ctx.beginPath(); ctx.arc(t.x, t.y - t.s, t.s/2.2, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(t.x - t.s/3, t.y - t.s + 10, t.s/3, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(t.x + t.s/3, t.y - t.s + 10, t.s/3, 0, Math.PI*2); ctx.fill();
-        });
+        if (bgLoaded) {
+            ctx.drawImage(bgImg, -5000, -3000, WORLD_W + 10000, WORLD_H + 6000);
+        }
 
         birds.forEach(b => drawBird(b));
 
-        ctx.fillStyle = getColor(129, 199, 132);
+        ctx.fillStyle = "rgb(129, 199, 132)";
         for(let i = leaves.length - 1; i >= 0; i--) {
             let l = leaves[i];
             if(gameActive) {
@@ -531,10 +497,15 @@
             ctx.restore();
             if(l.y > WORLD_H + 50) leaves.splice(i, 1);
         }
+
+        let darkness = Math.max(0, 1 - (daylight / 100));
+        ctx.fillStyle = `rgba(0, 0, 0, ${darkness * 0.8})`;
+        ctx.fillRect(-10000, -10000, WORLD_W + 20000, WORLD_H + 20000);
+
         ctx.restore(); 
 
         if (gameActive) {
-            let targetBird = birds.find(b => b.color === huntTargetColor && b.active);
+            let targetBird = birds.find(b => b.birdSet === huntTargetSet && b.active);
             if (targetBird) {
                 let birdScreenX = width/2 + (targetBird.x - currentCamX) * currentZoom;
                 let birdScreenY = height/2 + (targetBird.y - currentCamY) * currentZoom;
@@ -575,19 +546,18 @@
             ctx.moveTo(width/2, height/2 - 20); ctx.lineTo(width/2, height/2 + 20);
             ctx.stroke();
 
-            if (huntTargetColor) {
+            if (huntTargetSet && huntTargetSet.perched.complete) {
                 ctx.save();
                 ctx.translate(width - 50, 50); 
-                ctx.scale(1.5, 1.5); 
                 
-                ctx.fillStyle = huntTargetColor;
-                ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'white';
-                ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill(); 
-                ctx.fillStyle = 'black';
-                ctx.beginPath(); ctx.arc(6, -4, 1.5, 0, Math.PI*2); ctx.fill(); 
-                ctx.fillStyle = 'orange';
-                ctx.beginPath(); ctx.moveTo(14, -2); ctx.lineTo(30, 0); ctx.lineTo(14, 6); ctx.fill(); 
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.fill();
+                
+                ctx.drawImage(huntTargetSet.perched, -25, -25, 50, 50);
+                
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.stroke();
                 
                 ctx.restore();
             }
@@ -657,7 +627,7 @@
                 playSound('error');
                 score = Math.max(0, score - 10); 
                 scoreEl.innerText = score;
-                huntTargetColor = null;
+                huntTargetSet = null;
                 spawnCooldown = 10; 
                 birds.forEach(bird => {
                     bird.active = false;
@@ -677,8 +647,8 @@
         if (activeBirds.length === 0 && gameActive && birds.length === 0) {
             spawnCooldown--;
             if (spawnCooldown <= 0) {
-                const availableColors = [...birdColors].sort(() => Math.random() - 0.5);
-                const birdsToSpawn = Math.min(cfgCount, birdColors.length);
+                const availableSets = [...birdSets].sort(() => Math.random() - 0.5);
+                const birdsToSpawn = Math.min(cfgCount, birdSets.length);
 
                 for (let i = 0; i < birdsToSpawn; i++) {
                     const isPerched = Math.random() < 0.5; 
@@ -703,12 +673,12 @@
                         vy: isPerched ? 0 : (Math.random() - 0.5) * 8 * level,
                         size: uniqueSize, 
                         timer: cfgTimer / level, 
-                        color: availableColors[i],
+                        birdSet: availableSets[i],
                         active: true,
                         perched: isPerched 
                     });
                 }
-                huntTargetColor = birds[Math.floor(Math.random() * birds.length)].color;
+                huntTargetSet = birds[Math.floor(Math.random() * birds.length)].birdSet;
             }
         }
 

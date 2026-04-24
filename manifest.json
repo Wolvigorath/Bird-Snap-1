@@ -1,14 +1,14 @@
 {
-  "id": "bird-snap-pro-v1",
+  "id": "bird-snap-pro",
   "name": "Bird Snap PRO",
   "short_name": "BirdSnap",
-  "description": "Therapeutic bird photography game for focus and motor skills training.",
+  "description": "Therapeutic bird photography game.",
   "start_url": "./index.html",
   "display": "fullscreen",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "landscape",
-  "categories": ["games", "education", "health"],
+  "categories": ["games", "education"],
   "icons": [
     {
       "src": "icon-192.png",
@@ -19,22 +19,6 @@
       "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "screen1.png",
-      "sizes": "1920x1080",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Forest level gameplay"
-    },
-    {
-      "src": "screen2.png",
-      "sizes": "1920x1080",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Therapeutic settings panel"
     }
   ]
 }

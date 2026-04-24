@@ -1,11 +1,9 @@
 <!DOCTYPE html>
-<html lang="pl">
-    
+<html lang="en">
 <head>
-    <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bird Snap PRO - Wersja Terapeutyczna</title>
+    <title>Bird Snap PRO - Therapeutic Version</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -67,67 +65,59 @@
         button { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; background: #4caf50; border: none; color: white; border-radius: 5px; font-weight: bold; margin: 5px; }
         .btn-secondary { background: #f44336; font-size: 1rem; padding: 10px 20px; }
     </style>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for(let r of registrations) r.unregister();
-            });
-            if ('caches' in window) {
-                caches.keys().then(keys => {
-                    keys.forEach(key => caches.delete(key));
-                });
-            }
-        }
-    </script>
 </head>
 <body>
 
 <div id="start-screen" class="screen">
     <h1>BIRD SNAP PRO</h1>
     <div class="instructions">
-        <p>🕹️ <b>STEROWANIE:</b> Joystick (prawy kciuk)</p>
-        <p>🔴 <b>FOTO:</b> Przycisk w lewym rogu lub <b>SPACJA</b></p>
-        <p>Cel to ptak z ikony w prawym górnym rogu.</p>
+        <p>🕹️ <b>CONTROLS:</b> Joystick (right thumb)</p>
+        <p>🔴 <b>PHOTO:</b> Left corner button or <b>SPACE</b></p>
+        <p>Target the bird shown in the top right corner.</p>
         
         <div class="settings-panel">
             <div class="setting-row">
-                <label>Czas ucieczki: <span id="val-timer">500</span></label>
+                <label>Zoom Level: <span id="val-zoom">0.50</span></label>
+                <input type="range" id="cfg-zoom" min="0.3" max="1.5" step="0.05" value="0.50">
+            </div>
+            <div class="setting-row">
+                <label>Escape Timer: <span id="val-timer">500</span></label>
                 <input type="range" id="cfg-timer" min="200" max="1500" step="50" value="500">
             </div>
             <div class="setting-row">
-                <label>Ilość ptaków na raz: <span id="val-count">4</span></label>
+                <label>Birds per Wave: <span id="val-count">4</span></label>
                 <input type="range" id="cfg-count" min="1" max="6" step="1" value="4">
             </div>
             <div class="setting-row">
-                <label>Spadek światła: <span id="val-drain">0.05</span></label>
+                <label>Light Drain Speed: <span id="val-drain">0.05</span></label>
                 <input type="range" id="cfg-drain" min="0.01" max="0.15" step="0.01" value="0.05">
             </div>
         </div>
     </div>
-    <button onclick="startGame()">START GRY</button>
+    <button onclick="startGame()">START GAME</button>
 </div>
 
 <div id="game-over-screen" class="screen">
-    <h1>KONIEC DNIA</h1>
-    <p id="over-score" style="font-size: 1.5rem; margin: 5px 0;">Wynik: 0</p>
+    <h1>END OF DAY</h1>
+    <p id="over-score" style="font-size: 1.5rem; margin: 5px 0;">Score: 0</p>
     
     <div id="highscore-box">
         <h3 style="margin-top:0; text-align:center;">TOP 5</h3>
         <ol id="highscore-list"></ol>
     </div>
 
-    <input type="text" id="player-name" placeholder="Twoje imię" maxlength="12">
-    <button onclick="saveHighscore()">ZAPISZ I GRAJ</button>
-    <button class="btn-secondary" onclick="resetGame()">GRAJ BEZ ZAPISU</button>
+    <input type="text" id="player-name" placeholder="Your name" maxlength="12">
+    <button onclick="saveHighscore()">SAVE & PLAY</button>
+    <button class="btn-secondary" onclick="resetGame()">PLAY WITHOUT SAVING</button>
 </div>
 
 <div id="ui">
-    <div class="label">PUNKTY: <span id="score">0</span> <span id="level-tag">POZIOM 1</span></div>
-    <div class="label">ŚWIATŁO:</div>
+    <div class="label">POINTS: <span id="score">0</span> <span id="level-tag">LEVEL 1</span></div>
+    <div class="label">LIGHT:</div>
     <div id="time-container"><div id="time-bar"></div></div>
 </div>
 
-<div id="snap-btn">FOTO</div>
+<div id="snap-btn">PHOTO</div>
 <div id="joystick-zone"><div id="joystick-stick"></div></div>
 
 <canvas id="gameCanvas"></canvas>
@@ -150,10 +140,16 @@
     const highscoreList = document.getElementById('highscore-list');
     const playerNameInput = document.getElementById('player-name');
 
-    // Parametry konfiguracyjne
     let cfgTimer = 500;
     let cfgCount = 4;
     let cfgDrain = 0.05;
+    let currentZoom = 0.50;
+
+    document.getElementById('cfg-zoom').addEventListener('input', (e) => {
+        currentZoom = parseFloat(e.target.value);
+        document.getElementById('val-zoom').innerText = currentZoom.toFixed(2);
+        if(!gameActive) drawScene();
+    });
 
     document.getElementById('cfg-timer').addEventListener('input', (e) => {
         cfgTimer = parseInt(e.target.value);
@@ -179,24 +175,17 @@
 
     let currentCamX = WORLD_W / 2;
     let currentCamY = WORLD_H / 2;
-    const currentZoom = 0.5; 
 
     const birdColors = [
-        'rgb(173, 216, 230)', 
-        'rgb(76, 175, 80)',   
-        'rgb(255, 235, 59)',  
-        'rgb(244, 67, 54)',   
-        'rgb(233, 30, 99)',   
-        'rgb(255, 152, 0)'    
+        'rgb(173, 216, 230)', 'rgb(76, 175, 80)', 'rgb(255, 235, 59)', 
+        'rgb(244, 67, 54)', 'rgb(233, 30, 99)', 'rgb(255, 152, 0)'
     ];
 
     let birds = [];
     let huntTargetColor = null;
-
     let spawnCooldown = 0;
     let shutterState = 'idle'; 
     let shutterVal = 0; 
-
     let trees = [];
     let clouds = [];
     let leaves = [];
@@ -263,28 +252,20 @@
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
-
         if (type === 'shutter') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(300, now);
+            osc.type = 'square'; osc.frequency.setValueAtTime(300, now);
             osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-            gain.gain.setValueAtTime(0.4, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
             osc.start(now); osc.stop(now + 0.1);
         } else if (type === 'success') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(440, now);
-            osc.frequency.setValueAtTime(554, now + 0.05);
-            osc.frequency.setValueAtTime(659, now + 0.1);
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.linearRampToValueAtTime(0, now + 0.2);
+            osc.type = 'square'; osc.frequency.setValueAtTime(440, now);
+            osc.frequency.setValueAtTime(554, now + 0.05); osc.frequency.setValueAtTime(659, now + 0.1);
+            gain.gain.setValueAtTime(0.15, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
             osc.start(now); osc.stop(now + 0.2);
         } else if (type === 'error') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, now);
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now);
             osc.frequency.linearRampToValueAtTime(80, now + 0.2);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.linearRampToValueAtTime(0, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
             osc.start(now); osc.stop(now + 0.2);
         }
     }
@@ -302,11 +283,11 @@
             li.innerText = `${entry.name} - ${entry.score}`;
             highscoreList.appendChild(li);
         });
-        if(highscores.length === 0) highscoreList.innerHTML = '<li>Brak wyników</li>';
+        if(highscores.length === 0) highscoreList.innerHTML = '<li>No scores</li>';
     }
 
     function saveHighscore() {
-        let name = playerNameInput.value.trim() || "Gość";
+        let name = playerNameInput.value.trim() || "Guest";
         highscores.push({ name: name, score: score });
         highscores.sort((a, b) => b.score - a.score);
         highscores = highscores.slice(0, 5); 
@@ -317,132 +298,69 @@
     function initEnvironment() {
         trees = []; clouds = [];
         for(let i=0; i<30; i++) {
-            trees.push({
-                x: Math.random() * WORLD_W,
-                y: WORLD_H - 100 - (Math.random() * 400),
-                s: 180 + Math.random() * 300
-            });
+            trees.push({ x: Math.random() * WORLD_W, y: WORLD_H - 100 - (Math.random() * 400), s: 180 + Math.random() * 300 });
         }
         for(let i=0; i<12; i++) {
-            clouds.push({
-                x: Math.random() * WORLD_W,
-                y: 100 + Math.random() * 500,
-                s: 150 + Math.random() * 250,
-                vx: 0.2 + Math.random() * 0.5
-            });
+            clouds.push({ x: Math.random() * WORLD_W, y: 100 + Math.random() * 500, s: 150 + Math.random() * 250, vx: 0.2 + Math.random() * 0.5 });
         }
     }
 
     function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
-        
-        if(!gameActive) {
-            initEnvironment();
-            drawScene();
-        }
+        width = window.innerWidth; height = window.innerHeight;
+        canvas.width = width; canvas.height = height;
+        if(!gameActive) { initEnvironment(); drawScene(); }
     }
     window.addEventListener('resize', resize);
 
     function startGame() {
         initAudio();
         startScreen.style.display = 'none';
-        ui.style.display = 'block';
-        snapBtn.style.display = 'flex';
-        joystickZone.style.display = 'block';
+        ui.style.display = 'block'; snapBtn.style.display = 'flex'; joystickZone.style.display = 'block';
         resetGame();
     }
 
     function endGame() {
-        gameActive = false;
-        ui.style.display = 'none';
-        snapBtn.style.display = 'none';
-        joystickZone.style.display = 'none';
-        gameOverScreen.style.display = 'flex';
-        overScore.innerText = `Twój wynik: ${score}`;
-        playerNameInput.value = '';
+        gameActive = false; ui.style.display = 'none'; snapBtn.style.display = 'none';
+        joystickZone.style.display = 'none'; gameOverScreen.style.display = 'flex';
+        overScore.innerText = `Your score: ${score}`; playerNameInput.value = '';
         renderHighscores();
     }
 
     function resetGame() {
         score = 0; level = 1; daylight = 100; gameActive = true; spawnCooldown = 0; shutterState = 'idle'; shutterVal = 0;
-        scoreEl.innerText = "0"; levelEl.innerText = "POZIOM 1";
-        gameOverScreen.style.display = 'none';
-        ui.style.display = 'block';
-        snapBtn.style.display = 'flex';
-        joystickZone.style.display = 'block';
-        leaves = [];
-        birds = [];
-        huntTargetColor = null;
-        currentCamX = WORLD_W / 2;
-        currentCamY = WORLD_H / 2;
-        resize();
-        requestAnimationFrame(update);
+        scoreEl.innerText = "0"; levelEl.innerText = "LEVEL 1";
+        gameOverScreen.style.display = 'none'; ui.style.display = 'block'; snapBtn.style.display = 'flex'; joystickZone.style.display = 'block';
+        leaves = []; birds = []; huntTargetColor = null;
+        currentCamX = WORLD_W / 2; currentCamY = WORLD_H / 2;
+        resize(); requestAnimationFrame(update);
     }
 
     function takePhoto() {
         if (!gameActive || shutterState !== 'idle') return;
-        playSound('shutter');
-        shutterState = 'closing';
-
+        playSound('shutter'); shutterState = 'closing';
         let hitLeaf = false;
         for(let i=0; i<leaves.length; i++) {
             let dist = Math.hypot(currentCamX - leaves[i].x, currentCamY - leaves[i].y);
-            if (dist < leaves[i].s * 1.5) {
-                hitLeaf = true;
-                leaves.splice(i, 1);
-                break;
-            }
+            if (dist < leaves[i].s * 1.5) { hitLeaf = true; leaves.splice(i, 1); break; }
         }
-
-        if (hitLeaf) {
-            playSound('error');
-            score = Math.max(0, score - 5);
-            scoreEl.innerText = score;
-            return; 
-        }
-
+        if (hitLeaf) { playSound('error'); score = Math.max(0, score - 5); scoreEl.innerText = score; return; }
         let hitBirdIdx = -1;
         for(let i = 0; i < birds.length; i++) {
             if(!birds[i].active) continue;
             let dist = Math.hypot(currentCamX - birds[i].x, currentCamY - birds[i].y);
-            let hitRadius = birds[i].size * 2.5;
-            if (dist < hitRadius) {
-                hitBirdIdx = i;
-                break;
-            }
+            if (dist < birds[i].size * 2.5) { hitBirdIdx = i; break; }
         }
-
         if (hitBirdIdx !== -1) {
             let shotBird = birds[hitBirdIdx];
-            
             if (shotBird.color === huntTargetColor) {
-                playSound('success');
-                score += Math.round(10 * level);
-                daylight = Math.min(100, daylight + 15);
-                
-                if (score > 150 && level === 1) { level = 2; levelEl.innerText = "POZIOM 2"; }
-                if (score > 400 && level === 2) { level = 3; levelEl.innerText = "POZIOM 3"; }
-            } else {
-                playSound('error');
-                score = Math.max(0, score - 20);
-                daylight = Math.max(0, daylight - 10);
-            }
-            
-            scoreEl.innerText = score;
-            huntTargetColor = null;
-            spawnCooldown = 10; 
-
+                playSound('success'); score += Math.round(10 * level); daylight = Math.min(100, daylight + 15);
+                if (score > 150 && level === 1) { level = 2; levelEl.innerText = "LEVEL 2"; }
+                if (score > 400 && level === 2) { level = 3; levelEl.innerText = "LEVEL 3"; }
+            } else { playSound('error'); score = Math.max(0, score - 20); daylight = Math.max(0, daylight - 10); }
+            scoreEl.innerText = score; huntTargetColor = null; spawnCooldown = 10; 
             birds.forEach(b => {
-                b.active = false;
-                b.timer = Math.min(b.timer, 0); 
-                if (b.perched) {
-                    b.perched = false;
-                }
-                b.vx = (Math.random() - 0.5) * 40;
-                b.vy = (Math.random() - 0.5) * 40;
+                b.active = false; b.timer = Math.min(b.timer, 0); b.perched = false;
+                b.vx = (Math.random() - 0.5) * 40; b.vy = (Math.random() - 0.5) * 40;
             });
         }
     }
@@ -453,270 +371,128 @@
     }
 
     function drawBird(birdObj) {
-        ctx.save();
-        ctx.translate(birdObj.x, birdObj.y);
-        
+        ctx.save(); ctx.translate(birdObj.x, birdObj.y);
         if (birdObj.vx < 0 || (birdObj.vx === 0 && Math.sin(birdObj.x) > 0)) ctx.scale(-1, 1); 
-        
-        ctx.fillStyle = birdObj.color;
-        ctx.beginPath(); ctx.arc(0, 0, birdObj.size, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'black';
-        ctx.beginPath(); ctx.arc(birdObj.size * 0.3, -birdObj.size * 0.2, birdObj.size * 0.2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'orange';
-        ctx.beginPath(); 
-        ctx.moveTo(birdObj.size * 0.7, -birdObj.size * 0.1); 
-        ctx.lineTo(birdObj.size * 1.5, 0); 
-        ctx.lineTo(birdObj.size * 0.7, birdObj.size * 0.3); 
-        ctx.fill();
+        ctx.fillStyle = birdObj.color; ctx.beginPath(); ctx.arc(0, 0, birdObj.size, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(birdObj.size * 0.3, -birdObj.size * 0.2, birdObj.size * 0.2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.moveTo(birdObj.size * 0.7, -birdObj.size * 0.1); 
+        ctx.lineTo(birdObj.size * 1.5, 0); ctx.lineTo(birdObj.size * 0.7, birdObj.size * 0.3); ctx.fill();
         ctx.restore();
     }
 
     function drawScene() {
-        ctx.clearRect(0, 0, width, height);
-        ctx.save();
-        
-        ctx.translate(width/2, height/2);
-        ctx.scale(currentZoom, currentZoom);
-        ctx.translate(-currentCamX, -currentCamY);
-
-        ctx.fillStyle = getColor(135, 206, 235);
-        ctx.fillRect(-2000, -2000, WORLD_W + 4000, WORLD_H + 4000);
-
+        ctx.clearRect(0, 0, width, height); ctx.save();
+        ctx.translate(width/2, height/2); ctx.scale(currentZoom, currentZoom); ctx.translate(-currentCamX, -currentCamY);
+        ctx.fillStyle = getColor(135, 206, 235); ctx.fillRect(-2000, -2000, WORLD_W + 4000, WORLD_H + 4000);
         ctx.fillStyle = getColor(220, 220, 220);
         clouds.forEach(c => {
-            if(gameActive) c.x += c.vx;
-            if(c.x - c.s > WORLD_W) c.x = -c.s;
+            if(gameActive) c.x += c.vx; if(c.x - c.s > WORLD_W) c.x = -c.s;
             ctx.beginPath(); ctx.arc(c.x, c.y, c.s, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(c.x + c.s*0.8, c.y - c.s*0.2, c.s*0.8, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(c.x - c.s*0.8, c.y + c.s*0.1, c.s*0.6, 0, Math.PI*2); ctx.fill();
         });
-
-        ctx.fillStyle = getColor(56, 142, 60);
-        ctx.fillRect(-2000, WORLD_H - 100, WORLD_W + 4000, 2000);
-
+        ctx.fillStyle = getColor(56, 142, 60); ctx.fillRect(-2000, WORLD_H - 100, WORLD_W + 4000, 2000);
         trees.forEach(t => {
-            ctx.fillStyle = getColor(78, 52, 46); 
-            ctx.fillRect(t.x - t.s/10, t.y - t.s, t.s/5, t.s);
-            ctx.fillStyle = getColor(46, 125, 50); 
-            ctx.beginPath(); ctx.arc(t.x, t.y - t.s, t.s/2.2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = getColor(78, 52, 46); ctx.fillRect(t.x - t.s/10, t.y - t.s, t.s/5, t.s);
+            ctx.fillStyle = getColor(46, 125, 50); ctx.beginPath(); ctx.arc(t.x, t.y - t.s, t.s/2.2, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(t.x - t.s/3, t.y - t.s + 10, t.s/3, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(t.x + t.s/3, t.y - t.s + 10, t.s/3, 0, Math.PI*2); ctx.fill();
         });
-
         birds.forEach(b => drawBird(b));
-
         ctx.fillStyle = getColor(129, 199, 132);
         for(let i = leaves.length - 1; i >= 0; i--) {
             let l = leaves[i];
-            if(gameActive) {
-                l.x += l.vx + Math.sin(Date.now()/300 + l.y)*1.5;
-                l.y += l.vy;
-            }
-            ctx.save();
-            ctx.translate(l.x, l.y);
-            ctx.rotate(Date.now()/500 + l.x);
-            ctx.scale(1, 0.5); 
-            ctx.beginPath();
-            ctx.arc(0, 0, l.s, 0, Math.PI*2);
-            ctx.fill();
-            ctx.restore();
+            if(gameActive) { l.x += l.vx + Math.sin(Date.now()/300 + l.y)*1.5; l.y += l.vy; }
+            ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(Date.now()/500 + l.x); ctx.scale(1, 0.5); 
+            ctx.beginPath(); ctx.arc(0, 0, l.s, 0, Math.PI*2); ctx.fill(); ctx.restore();
             if(l.y > WORLD_H + 50) leaves.splice(i, 1);
         }
         ctx.restore(); 
-
         if (gameActive) {
             let targetBird = birds.find(b => b.color === huntTargetColor && b.active);
             if (targetBird) {
                 let birdScreenX = width/2 + (targetBird.x - currentCamX) * currentZoom;
                 let birdScreenY = height/2 + (targetBird.y - currentCamY) * currentZoom;
-                
                 if (birdScreenX < 0 || birdScreenX > width || birdScreenY < 0 || birdScreenY > height) {
                     let angle = Math.atan2(birdScreenY - height/2, birdScreenX - width/2);
                     let padding = 30;
-                    
                     let arrX = Math.max(padding, Math.min(width - padding, birdScreenX));
                     let arrY = Math.max(padding, Math.min(height - padding, birdScreenY));
-
-                    ctx.save();
-                    ctx.translate(arrX, arrY);
-                    ctx.rotate(angle);
-                    ctx.fillStyle = 'rgba(255, 50, 50, 0.8)';
-                    ctx.beginPath();
-                    ctx.moveTo(15, 0);
-                    ctx.lineTo(-10, -15);
-                    ctx.lineTo(-10, 15);
-                    ctx.fill();
-                    ctx.restore();
+                    ctx.save(); ctx.translate(arrX, arrY); ctx.rotate(angle); ctx.fillStyle = 'rgba(255, 50, 50, 0.8)';
+                    ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-10, -15); ctx.lineTo(-10, 15); ctx.fill(); ctx.restore();
                 }
             }
-
-            let baseSize = 45; 
-            let hitRadius = baseSize * 2.5 * currentZoom;
-
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(width/2, height/2, hitRadius, 0, Math.PI*2);
-            ctx.stroke();
-
-            ctx.strokeStyle = daylight > 40 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(width/2 - 20, height/2); ctx.lineTo(width/2 + 20, height/2);
-            ctx.moveTo(width/2, height/2 - 20); ctx.lineTo(width/2, height/2 + 20);
-            ctx.stroke();
-
+            let hitRadius = 45 * 2.5 * currentZoom;
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(width/2, height/2, hitRadius, 0, Math.PI*2); ctx.stroke();
+            ctx.strokeStyle = daylight > 40 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(width/2 - 20, height/2); ctx.lineTo(width/2 + 20, height/2);
+            ctx.moveTo(width/2, height/2 - 20); ctx.lineTo(width/2, height/2 + 20); ctx.stroke();
             if (huntTargetColor) {
-                ctx.save();
-                ctx.translate(width - 50, 50); 
-                ctx.scale(1.5, 1.5); 
-                
-                ctx.fillStyle = huntTargetColor;
-                ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'white';
-                ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill(); 
-                ctx.fillStyle = 'black';
-                ctx.beginPath(); ctx.arc(6, -4, 1.5, 0, Math.PI*2); ctx.fill(); 
-                ctx.fillStyle = 'orange';
-                ctx.beginPath(); ctx.moveTo(14, -2); ctx.lineTo(30, 0); ctx.lineTo(14, 6); ctx.fill(); 
-                
+                ctx.save(); ctx.translate(width - 50, 50); ctx.scale(1.5, 1.5); 
+                ctx.fillStyle = huntTargetColor; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill(); 
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(6, -4, 1.5, 0, Math.PI*2); ctx.fill(); 
+                ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.moveTo(14, -2); ctx.lineTo(30, 0); ctx.lineTo(14, 6); ctx.fill(); 
                 ctx.restore();
             }
-
-            if (shutterState === 'closing') {
-                shutterVal += 0.25;
-                if (shutterVal >= 1) { shutterVal = 1; shutterState = 'opening'; }
-            } else if (shutterState === 'opening') {
-                shutterVal -= 0.10;
-                if (shutterVal <= 0) { shutterVal = 0; shutterState = 'idle'; }
-            }
-
+            if (shutterState === 'closing') { shutterVal += 0.25; if (shutterVal >= 1) { shutterVal = 1; shutterState = 'opening'; } }
+            else if (shutterState === 'opening') { shutterVal -= 0.10; if (shutterVal <= 0) { shutterVal = 0; shutterState = 'idle'; } }
             if (shutterVal > 0) {
-                let maxR = Math.max(width, height);
-                let holeR = maxR * (1 - shutterVal);
-                ctx.beginPath();
-                ctx.arc(width/2, height/2, holeR + maxR/2, 0, Math.PI*2);
-                ctx.lineWidth = maxR;
-                ctx.strokeStyle = '#000';
-                ctx.stroke();
+                let maxR = Math.max(width, height); let holeR = maxR * (1 - shutterVal);
+                ctx.beginPath(); ctx.arc(width/2, height/2, holeR + maxR/2, 0, Math.PI*2);
+                ctx.lineWidth = maxR; ctx.strokeStyle = '#000'; ctx.stroke();
             }
         }
     }
 
     function update() {
         if (!gameActive) return;
-
-        // Aplikacja parametru cfgDrain z suwaka
         daylight -= cfgDrain * level;
         timeBar.style.width = Math.max(0, daylight) + "%";
-        if (daylight <= 0) {
-            endGame();
-            return;
-        }
-
+        if (daylight <= 0) { endGame(); return; }
         const speed = 25 + (level * 3);
-        currentCamX += joyDX * speed;
-        currentCamY += joyDY * speed;
-
+        currentCamX += joyDX * speed; currentCamY += joyDY * speed;
         currentCamX = Math.max(0, Math.min(WORLD_W, currentCamX));
         currentCamY = Math.max(0, Math.min(WORLD_H, currentCamY));
-
         if (Math.random() < 0.04 + (level*0.01)) {
-            leaves.push({
-                x: Math.random() * WORLD_W,
-                y: -50,
-                vx: (Math.random() - 0.5) * 4,
-                vy: 2 + Math.random() * 4,
-                s: 15 + Math.random() * 20
-            });
+            leaves.push({ x: Math.random() * WORLD_W, y: -50, vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 4, s: 15 + Math.random() * 20 });
         }
-
         for (let i = birds.length - 1; i >= 0; i--) {
-            let b = birds[i];
-            b.timer--;
-            
-            if (!b.perched) {
-                b.x += b.vx;
-                b.y += b.vy;
-                
-                if(b.x < 50 || b.x > WORLD_W - 50) b.vx *= -1;
-                if(b.y < 50 || b.y > WORLD_H - 50) b.vy *= -1;
-            } else {
-                b.y += Math.sin(Date.now()/500 + b.x)*0.2;
-            }
-
+            let b = birds[i]; b.timer--;
+            if (!b.perched) { b.x += b.vx; b.y += b.vy; if(b.x < 50 || b.x > WORLD_W - 50) b.vx *= -1; if(b.y < 50 || b.y > WORLD_H - 50) b.vy *= -1; }
+            else { b.y += Math.sin(Date.now()/500 + b.x)*0.2; }
             if (b.timer <= 0 && b.active) { 
-                playSound('error');
-                score = Math.max(0, score - 10); 
-                scoreEl.innerText = score;
-                huntTargetColor = null;
-                spawnCooldown = 10; 
-                birds.forEach(bird => {
-                    bird.active = false;
-                    bird.perched = false; 
-                    bird.timer = Math.min(bird.timer, 0); 
-                    bird.vx = (Math.random() - 0.5) * 40;
-                    bird.vy = (Math.random() - 0.5) * 40;
-                });
+                playSound('error'); score = Math.max(0, score - 10); scoreEl.innerText = score;
+                huntTargetColor = null; spawnCooldown = 10; 
+                birds.forEach(bird => { bird.active = false; bird.perched = false; bird.timer = Math.min(bird.timer, 0); bird.vx = (Math.random() - 0.5) * 40; bird.vy = (Math.random() - 0.5) * 40; });
             }
-
-            if (b.timer < -30) { 
-                birds.splice(i, 1);
-            }
+            if (b.timer < -30) { birds.splice(i, 1); }
         }
-
-        let activeBirds = birds.filter(b => b.active);
-        if (activeBirds.length === 0 && gameActive && birds.length === 0) {
+        if (birds.filter(b => b.active).length === 0 && gameActive && birds.length === 0) {
             spawnCooldown--;
             if (spawnCooldown <= 0) {
                 const availableColors = [...birdColors].sort(() => Math.random() - 0.5);
-                // Użycie sztywnego limitu z panelu ustawień
                 const birdsToSpawn = Math.min(cfgCount, birdColors.length);
-
                 for (let i = 0; i < birdsToSpawn; i++) {
-                    const isPerched = Math.random() < 0.5; 
-                    let spawnX, spawnY;
-
+                    const isPerched = Math.random() < 0.5; let spawnX, spawnY;
                     if (isPerched && trees.length > 0) {
                         const tree = trees[Math.floor(Math.random() * trees.length)];
-                        spawnX = tree.x;
-                        spawnY = tree.y - (Math.random() * tree.s * 0.8) - 10; 
-                    } else {
-                        spawnX = 200 + Math.random() * (WORLD_W - 400);
-                        spawnY = 200 + Math.random() * (WORLD_H - 400);
-                    }
-
-                    const baseSize = Math.max(40, 55 - level);
-                    const uniqueSize = baseSize * (0.85 + Math.random() * 0.3);
-
+                        spawnX = tree.x; spawnY = tree.y - (Math.random() * tree.s * 0.8) - 10; 
+                    } else { spawnX = 200 + Math.random() * (WORLD_W - 400); spawnY = 200 + Math.random() * (WORLD_H - 400); }
                     birds.push({
-                        x: spawnX,
-                        y: spawnY, 
-                        vx: isPerched ? 0 : (Math.random() - 0.5) * 12 * level,
+                        x: spawnX, y: spawnY, vx: isPerched ? 0 : (Math.random() - 0.5) * 12 * level,
                         vy: isPerched ? 0 : (Math.random() - 0.5) * 8 * level,
-                        size: uniqueSize, 
-                        timer: cfgTimer / level, // Użycie czasu z panelu ustawień
-                        color: availableColors[i],
-                        active: true,
-                        perched: isPerched 
+                        size: Math.max(40, 55 - level) * (0.85 + Math.random() * 0.3), 
+                        timer: cfgTimer / level, color: availableColors[i], active: true, perched: isPerched 
                     });
                 }
                 huntTargetColor = birds[Math.floor(Math.random() * birds.length)].color;
             }
         }
-
-        drawScene();
-        requestAnimationFrame(update);
+        drawScene(); requestAnimationFrame(update);
     }
-    
     resize();
-</script>
-    <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js');
-    });
-  }
 </script>
 </body>
 </html>

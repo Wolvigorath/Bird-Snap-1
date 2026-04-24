@@ -26,14 +26,14 @@
       "src": "screen1.png",
       "sizes": "1080x2000",
       "type": "image/png",
-      "form_factor": "wide",
+      "form_factor": "narrow",
       "label": "Bird Snap Gameplay 1"
     },
     {
       "src": "screen2.png",
       "sizes": "1080x2000",
       "type": "image/png",
-      "form_factor": "wide",
+      "form_factor": "narrow",
       "label": "Bird Snap Gameplay 2"
     }
   ]

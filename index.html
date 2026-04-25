@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bird Snap PRO - Magiczna Podłoga</title>
+    <title>Bird Snap PRO - Wersja Terapeutyczna</title>
 <link rel="manifest" href="manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -20,6 +20,27 @@
         #time-container { width: 200px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; margin-top: 10px; position: relative; }
         #time-bar { height: 100%; background: #ff9800; width: 100%; transition: width 0.1s; }
 
+        #snap-btn {
+            position: absolute; bottom: 30px; left: 30px;
+            width: 80px; height: 80px; border-radius: 50%; border: 3px solid white;
+            display: none; align-items: center; justify-content: center;
+            color: white; font-weight: bold; pointer-events: auto; font-size: 1.1rem;
+            background: rgba(244, 67, 54, 0.5); z-index: 10;
+        }
+
+        #joystick-zone {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 120px; height: 120px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255,255,255,0.3);
+            display: none; z-index: 10; touch-action: none;
+        }
+        #joystick-stick {
+            position: absolute; top: 50%; left: 50%;
+            width: 50px; height: 50px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translate(-50%, -50%); pointer-events: none;
+        }
+
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -30,6 +51,7 @@
 
         .instructions { text-align: left; background: #222; padding: 20px; border-radius: 10px; margin-bottom: 20px; max-width: 400px; width: 90%; }
         .instructions p { margin: 5px 0; }
+        .instructions ul { padding-left: 20px; margin-top: 5px; margin-bottom: 10px; }
         
         .settings-panel { border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; }
         .setting-row { display: flex; flex-direction: column; margin-bottom: 15px; }
@@ -62,13 +84,11 @@
 <div id="start-screen" class="screen">
     <h1>BIRD SNAP PRO</h1>
     <div class="instructions">
-        <p>🕹️ <b>STEROWANIE:</b> Kliknij / stań na ptaku z sekwencji</p>
+        <p>🕹️ <b>STEROWANIE:</b> Joystick (prawy kciuk)</p>
+        <p>🔴 <b>FOTO:</b> Przycisk w lewym rogu lub <b>SPACJA</b></p>
+        <p>Cel to ptak z ikony w prawym górnym rogu.</p>
         
         <div class="settings-panel">
-            <div class="setting-row">
-                <label>Długość sekwencji: <span id="val-seq">3</span></label>
-                <input type="range" id="cfg-seq" min="1" max="5" step="1" value="3">
-            </div>
             <div class="setting-row">
                 <label>Zoom (przybliżenie): <span id="val-zoom">0.30</span></label>
                 <input type="range" id="cfg-zoom" min="0.05" max="1.2" step="0.05" value="0.30">
@@ -78,8 +98,8 @@
                 <input type="range" id="cfg-timer" min="200" max="1500" step="50" value="500">
             </div>
             <div class="setting-row">
-                <label>Ilość ptaków na raz: <span id="val-count">18</span></label>
-                <input type="range" id="cfg-count" min="1" max="30" step="1" value="18">
+                <label>Ilość ptaków na raz: <span id="val-count">4</span></label>
+                <input type="range" id="cfg-count" min="1" max="6" step="1" value="4">
             </div>
             <div class="setting-row">
                 <label>Spadek światła: <span id="val-drain">0.05</span></label>
@@ -110,6 +130,9 @@
     <div id="time-container"><div id="time-bar"></div></div>
 </div>
 
+<div id="snap-btn">FOTO</div>
+<div id="joystick-zone"><div id="joystick-stick"></div></div>
+
 <canvas id="gameCanvas"></canvas>
 
 <script>
@@ -122,26 +145,23 @@
     const startScreen = document.getElementById('start-screen');
     const gameOverScreen = document.getElementById('game-over-screen');
     const ui = document.getElementById('ui');
+    const snapBtn = document.getElementById('snap-btn');
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickStick = document.getElementById('joystick-stick');
     
     const overScore = document.getElementById('over-score');
     const highscoreList = document.getElementById('highscore-list');
     const playerNameInput = document.getElementById('player-name');
 
-    let cfgSeq = 3;
     let cfgTimer = 500;
-    let cfgCount = 18;
+    let cfgCount = 4;
     let cfgDrain = 0.05;
     let currentZoom = 0.30; 
-
-    document.getElementById('cfg-seq').addEventListener('input', (e) => {
-        cfgSeq = parseInt(e.target.value);
-        document.getElementById('val-seq').innerText = cfgSeq;
-    });
 
     document.getElementById('cfg-zoom').addEventListener('input', (e) => {
         currentZoom = parseFloat(e.target.value);
         document.getElementById('val-zoom').innerText = currentZoom.toFixed(2);
-        resize(); 
+        if(!gameActive) drawScene(); 
     });
 
     document.getElementById('cfg-timer').addEventListener('input', (e) => {
@@ -158,8 +178,8 @@
     });
 
     let width, height;
-    let WORLD_W = 3000;
-    let WORLD_H = 1800;
+    const WORLD_W = 3000;
+    const WORLD_H = 1800;
 
     let bgLoaded = false;
     const bgImg = new Image();
@@ -182,8 +202,7 @@
     let currentCamY = WORLD_H / 2;
 
     let birds = [];
-    let huntTargetSequence = [];
-    let currentSequenceIdx = 0;
+    let huntTargetSet = null;
 
     let spawnCooldown = 0;
     let shutterState = 'idle'; 
@@ -192,83 +211,53 @@
     let trees = [];
     let leaves = [];
 
-    // System klikania / stąpania
-    canvas.addEventListener('pointerdown', (e) => {
-        if (!gameActive || shutterState !== 'idle' || huntTargetSequence.length === 0) return;
+    let joyActive = false;
+    let joyDX = 0;
+    let joyDY = 0;
+    let joyCenterX = 0;
+    let joyCenterY = 0;
+    const maxJoyRadius = 40;
 
-        const rect = canvas.getBoundingClientRect();
-        
-        // Przeliczenie kliknięcia na pozycję w świecie (uwzględniając przesunięcie i zoom)
-        const clickX = currentCamX + (e.clientX - rect.left - width / 2) / currentZoom;
-        const clickY = currentCamY + (e.clientY - rect.top - height / 2) / currentZoom;
+    joystickZone.addEventListener('pointerdown', (e) => {
+        joyActive = true;
+        const rect = joystickZone.getBoundingClientRect();
+        joyCenterX = rect.left + rect.width / 2;
+        joyCenterY = rect.top + rect.height / 2;
+        updateJoystick(e.clientX, e.clientY);
+        e.preventDefault();
+    });
 
-        let hitLeaf = false;
-        for(let i=0; i<leaves.length; i++) {
-            let dist = Math.hypot(clickX - leaves[i].x, clickY - leaves[i].y);
-            if (dist < leaves[i].s * 1.5) {
-                hitLeaf = true;
-                leaves.splice(i, 1);
-                break;
-            }
+    window.addEventListener('pointermove', (e) => {
+        if (!joyActive) return;
+        updateJoystick(e.clientX, e.clientY);
+        e.preventDefault();
+    });
+
+    window.addEventListener('pointerup', () => {
+        joyActive = false;
+        joyDX = 0; joyDY = 0;
+        joystickStick.style.transform = `translate(-50%, -50%)`;
+    });
+
+    function updateJoystick(x, y) {
+        let dx = x - joyCenterX;
+        let dy = y - joyCenterY;
+        let dist = Math.hypot(dx, dy);
+        if (dist > maxJoyRadius) {
+            dx = (dx / dist) * maxJoyRadius;
+            dy = (dy / dist) * maxJoyRadius;
         }
+        joyDX = dx / maxJoyRadius; 
+        joyDY = dy / maxJoyRadius;
+        joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    }
 
-        if (hitLeaf) {
-            playSound('error');
-            score = Math.max(0, score - 5);
-            scoreEl.innerText = score;
-            return; 
-        }
+    snapBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); takePhoto(); });
 
-        let hitBirdIdx = -1;
-        for(let i = 0; i < birds.length; i++) {
-            if(!birds[i].active) continue;
-            let dist = Math.hypot(clickX - birds[i].x, clickY - birds[i].y);
-            let hitRadius = birds[i].size * 2.5; // Hitbox
-            if (dist < hitRadius) {
-                hitBirdIdx = i;
-                break;
-            }
-        }
-
-        if (hitBirdIdx !== -1) {
-            playSound('shutter');
-            shutterState = 'closing';
-            
-            let shotBird = birds[hitBirdIdx];
-            let currentTarget = huntTargetSequence[currentSequenceIdx];
-            
-            if (shotBird.birdSet === currentTarget.birdSet) {
-                playSound('success');
-                currentTarget.done = true;
-                currentSequenceIdx++;
-                score += Math.round(10 * level);
-                daylight = Math.min(100, daylight + 5);
-                
-                shotBird.active = false; // Usuwa trafionego ptaka
-                
-                // Sprawdzanie czy cała sekwencja została zrobiona
-                if (currentSequenceIdx >= huntTargetSequence.length) {
-                    score += 50; // Bonus za całą sekwencję
-                    daylight = Math.min(100, daylight + 20);
-                    
-                    if (score > 150 && level === 1) { level = 2; levelEl.innerText = "POZIOM 2"; }
-                    if (score > 400 && level === 2) { level = 3; levelEl.innerText = "POZIOM 3"; }
-                    
-                    // Resetowanie planszy i sekwencji
-                    huntTargetSequence = [];
-                    spawnCooldown = 10; 
-                    birds.forEach(b => {
-                        b.active = false;
-                        b.timer = Math.min(b.timer, 0); 
-                    });
-                }
-            } else {
-                playSound('error');
-                score = Math.max(0, score - 15);
-                daylight = Math.max(0, daylight - 10);
-            }
-            
-            scoreEl.innerText = score;
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            takePhoto();
         }
     });
 
@@ -352,12 +341,6 @@
         canvas.width = width;
         canvas.height = height;
         
-        // Dynamiczne dopasowanie świata do widoku
-        WORLD_W = width / currentZoom;
-        WORLD_H = height / currentZoom;
-        currentCamX = WORLD_W / 2;
-        currentCamY = WORLD_H / 2;
-        
         if(!gameActive) {
             initEnvironment();
             drawScene();
@@ -369,12 +352,16 @@
         initAudio();
         startScreen.style.display = 'none';
         ui.style.display = 'block';
+        snapBtn.style.display = 'flex';
+        joystickZone.style.display = 'block';
         resetGame();
     }
 
     function endGame() {
         gameActive = false;
         ui.style.display = 'none';
+        snapBtn.style.display = 'none';
+        joystickZone.style.display = 'none';
         gameOverScreen.style.display = 'flex';
         overScore.innerText = `Twój wynik: ${score}`;
         playerNameInput.value = '';
@@ -386,14 +373,80 @@
         scoreEl.innerText = "0"; levelEl.innerText = "POZIOM 1";
         gameOverScreen.style.display = 'none';
         ui.style.display = 'block';
+        snapBtn.style.display = 'flex';
+        joystickZone.style.display = 'block';
         leaves = [];
         birds = [];
-        huntTargetSequence = [];
-        currentSequenceIdx = 0;
+        huntTargetSet = null;
         currentCamX = WORLD_W / 2;
         currentCamY = WORLD_H / 2;
         resize();
         requestAnimationFrame(update);
+    }
+
+    function takePhoto() {
+        if (!gameActive || shutterState !== 'idle') return;
+        playSound('shutter');
+        shutterState = 'closing';
+
+        let hitLeaf = false;
+        for(let i=0; i<leaves.length; i++) {
+            let dist = Math.hypot(currentCamX - leaves[i].x, currentCamY - leaves[i].y);
+            if (dist < leaves[i].s * 1.5) {
+                hitLeaf = true;
+                leaves.splice(i, 1);
+                break;
+            }
+        }
+
+        if (hitLeaf) {
+            playSound('error');
+            score = Math.max(0, score - 5);
+            scoreEl.innerText = score;
+            return; 
+        }
+
+        let hitBirdIdx = -1;
+        for(let i = 0; i < birds.length; i++) {
+            if(!birds[i].active) continue;
+            let dist = Math.hypot(currentCamX - birds[i].x, currentCamY - birds[i].y);
+            let hitRadius = birds[i].size * 2.5;
+            if (dist < hitRadius) {
+                hitBirdIdx = i;
+                break;
+            }
+        }
+
+        if (hitBirdIdx !== -1) {
+            let shotBird = birds[hitBirdIdx];
+            
+            if (shotBird.birdSet === huntTargetSet) {
+                playSound('success');
+                score += Math.round(10 * level);
+                daylight = Math.min(100, daylight + 15);
+                
+                if (score > 150 && level === 1) { level = 2; levelEl.innerText = "POZIOM 2"; }
+                if (score > 400 && level === 2) { level = 3; levelEl.innerText = "POZIOM 3"; }
+            } else {
+                playSound('error');
+                score = Math.max(0, score - 20);
+                daylight = Math.max(0, daylight - 10);
+            }
+            
+            scoreEl.innerText = score;
+            huntTargetSet = null;
+            spawnCooldown = 10; 
+
+            birds.forEach(b => {
+                b.active = false;
+                b.timer = Math.min(b.timer, 0); 
+                if (b.perched) {
+                    b.perched = false;
+                }
+                b.vx = (Math.random() - 0.5) * 40;
+                b.vy = (Math.random() - 0.5) * 40;
+            });
+        }
     }
 
     function drawBird(birdObj) {
@@ -451,48 +504,64 @@
 
         ctx.restore(); 
 
-        // Rysowanie sekwencji celów (interfejs 2D, niezależnie od kamery)
-        if (gameActive && huntTargetSequence.length > 0) {
-            ctx.save();
-            let startX = width - 50 - ((huntTargetSequence.length - 1) * 70); 
-            ctx.translate(startX, 50); 
-            
-            for(let i = 0; i < huntTargetSequence.length; i++) {
-                let seqItem = huntTargetSequence[i];
+        if (gameActive) {
+            let targetBird = birds.find(b => b.birdSet === huntTargetSet && b.active);
+            if (targetBird) {
+                let birdScreenX = width/2 + (targetBird.x - currentCamX) * currentZoom;
+                let birdScreenY = height/2 + (targetBird.y - currentCamY) * currentZoom;
                 
-                // Tło ikony
+                if (birdScreenX < 0 || birdScreenX > width || birdScreenY < 0 || birdScreenY > height) {
+                    let angle = Math.atan2(birdScreenY - height/2, birdScreenX - width/2);
+                    let padding = 30;
+                    
+                    let arrX = Math.max(padding, Math.min(width - padding, birdScreenX));
+                    let arrY = Math.max(padding, Math.min(height - padding, birdScreenY));
+
+                    ctx.save();
+                    ctx.translate(arrX, arrY);
+                    ctx.rotate(angle);
+                    ctx.fillStyle = 'rgba(255, 50, 50, 0.8)';
+                    ctx.beginPath();
+                    ctx.moveTo(15, 0);
+                    ctx.lineTo(-10, -15);
+                    ctx.lineTo(-10, 15);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            let baseSize = 45; 
+            let hitRadius = baseSize * 2.5 * currentZoom;
+
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(width/2, height/2, hitRadius, 0, Math.PI*2);
+            ctx.stroke();
+
+            ctx.strokeStyle = daylight > 40 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(width/2 - 20, height/2); ctx.lineTo(width/2 + 20, height/2);
+            ctx.moveTo(width/2, height/2 - 20); ctx.lineTo(width/2, height/2 + 20);
+            ctx.stroke();
+
+            if (huntTargetSet && huntTargetSet.perched.complete) {
+                ctx.save();
+                ctx.translate(width - 50, 50); 
+                
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.fill();
                 
-                // Rysunek ptaka
-                if (seqItem.birdSet.perched.complete) {
-                    ctx.drawImage(seqItem.birdSet.perched, -25, -25, 50, 50);
-                }
+                ctx.drawImage(huntTargetSet.perched, -25, -25, 50, 50);
                 
-                // Obramowanie - żółte jeśli aktualne, białe jeśli oczekuje
-                ctx.strokeStyle = i === currentSequenceIdx ? "#ffeb3b" : "white";
-                ctx.lineWidth = i === currentSequenceIdx ? 5 : 2;
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.stroke();
                 
-                // Zielony "ptaszek" jeśli trafione
-                if (seqItem.done) {
-                    ctx.strokeStyle = "#4caf50";
-                    ctx.lineWidth = 6;
-                    ctx.lineCap = "round";
-                    ctx.lineJoin = "round";
-                    ctx.beginPath();
-                    ctx.moveTo(-12, 0);
-                    ctx.lineTo(-4, 12);
-                    ctx.lineTo(16, -14);
-                    ctx.stroke();
-                }
-                
-                // Przesunięcie do następnej ikonki
-                ctx.translate(70, 0); 
+                ctx.restore();
             }
-            ctx.restore();
 
-            // Animacja migawki
             if (shutterState === 'closing') {
                 shutterVal += 0.25;
                 if (shutterVal >= 1) { shutterVal = 1; shutterState = 'opening'; }
@@ -523,6 +592,13 @@
             return;
         }
 
+        const speed = 25 + (level * 3);
+        currentCamX += joyDX * speed;
+        currentCamY += joyDY * speed;
+
+        currentCamX = Math.max(0, Math.min(WORLD_W, currentCamX));
+        currentCamY = Math.max(0, Math.min(WORLD_H, currentCamY));
+
         if (Math.random() < 0.04 + (level*0.01)) {
             leaves.push({
                 x: Math.random() * WORLD_W,
@@ -533,9 +609,6 @@
             });
         }
 
-        let uiZoneW = 350 / currentZoom;
-        let uiZoneH = 120 / currentZoom;
-
         for (let i = birds.length - 1; i >= 0; i--) {
             let b = birds[i];
             b.timer--;
@@ -544,38 +617,25 @@
                 b.x += b.vx;
                 b.y += b.vy;
                 
-                // Kolizje ogólne (ściany)
-                if(b.x < 80) { b.x = 80; b.vx = Math.abs(b.vx); }
-                else if(b.x > WORLD_W - 80) { b.x = WORLD_W - 80; b.vx = -Math.abs(b.vx); }
-                
-                if(b.y < 80) { b.y = 80; b.vy = Math.abs(b.vy); }
-                else if(b.y > WORLD_H - 80) { b.y = WORLD_H - 80; b.vy = -Math.abs(b.vy); }
-                
-                // Kolizja ze strefą UI (lewy górny róg) - ptaki odbijają w dół
-                if (b.x < uiZoneW && b.y < uiZoneH) {
-                    b.y = uiZoneH;
-                    b.vy = Math.abs(b.vy);
-                }
-
+                if(b.x < 50 || b.x > WORLD_W - 50) b.vx *= -1;
+                if(b.y < 50 || b.y > WORLD_H - 50) b.vy *= -1;
             } else {
                 b.y += Math.sin(Date.now()/500 + b.x)*0.2;
             }
 
             if (b.timer <= 0 && b.active) { 
                 playSound('error');
-                score = Math.max(0, score - 5); 
+                score = Math.max(0, score - 10); 
                 scoreEl.innerText = score;
-                
-                // Resetowanie tylko pojedynczego ptaka żeby poleciał na nowo,
-                // a nie całości, by gracz nie tracił zbudowanej sekwencji przez 1 ptaka
-                b.active = false;
-                b.perched = false; 
-                b.timer = Math.min(b.timer, 0); 
-                b.vx = (Math.random() - 0.5) * 40;
-                b.vy = (Math.random() - 0.5) * 40;
-                
-                // Wymuś uzupełnienie
-                spawnCooldown = 1;
+                huntTargetSet = null;
+                spawnCooldown = 10; 
+                birds.forEach(bird => {
+                    bird.active = false;
+                    bird.perched = false; 
+                    bird.timer = Math.min(bird.timer, 0); 
+                    bird.vx = (Math.random() - 0.5) * 40;
+                    bird.vy = (Math.random() - 0.5) * 40;
+                });
             }
 
             if (b.timer < -30) { 
@@ -584,18 +644,13 @@
         }
 
         let activeBirds = birds.filter(b => b.active);
-        // Generujemy jeśli jest za mało ptaków w stosunku do cfgCount
-        if (activeBirds.length < cfgCount && gameActive) {
+        if (activeBirds.length === 0 && gameActive && birds.length === 0) {
             spawnCooldown--;
             if (spawnCooldown <= 0) {
-                
-                let setsPool = [];
-                while(setsPool.length < cfgCount) {
-                    setsPool = setsPool.concat([...birdSets].sort(() => Math.random() - 0.5));
-                }
-                
-                let toSpawn = cfgCount - activeBirds.length;
-                for (let i = 0; i < toSpawn; i++) {
+                const availableSets = [...birdSets].sort(() => Math.random() - 0.5);
+                const birdsToSpawn = Math.min(cfgCount, birdSets.length);
+
+                for (let i = 0; i < birdsToSpawn; i++) {
                     const isPerched = Math.random() < 0.5; 
                     let spawnX, spawnY;
 
@@ -604,14 +659,8 @@
                         spawnX = tree.x;
                         spawnY = tree.y - (Math.random() * tree.s * 0.8) - 10; 
                     } else {
-                        spawnX = 150 + Math.random() * (WORLD_W - 300);
-                        spawnY = 150 + Math.random() * (WORLD_H - 300);
-                    }
-                    
-                    // Zabezpieczenie przed spawnem w UI
-                    if (spawnX < uiZoneW && spawnY < uiZoneH) {
-                        spawnX = uiZoneW + 100;
-                        spawnY = uiZoneH + 100;
+                        spawnX = 200 + Math.random() * (WORLD_W - 400);
+                        spawnY = 200 + Math.random() * (WORLD_H - 400);
                     }
 
                     const baseSize = Math.max(40, 55 - level);
@@ -624,20 +673,12 @@
                         vy: isPerched ? 0 : (Math.random() - 0.5) * 8 * level,
                         size: uniqueSize, 
                         timer: cfgTimer / level, 
-                        birdSet: setsPool[i],
+                        birdSet: availableSets[i],
                         active: true,
                         perched: isPerched 
                     });
                 }
-                
-                // Budowa sekwencji (tylko z unikalnych ptaków widocznych na ekranie), 
-                // robi to tylko jeśli sekwencja jest pusta (nowa runda)
-                if (huntTargetSequence.length === 0) {
-                    let uniqueSets = [...new Set(birds.map(b => b.birdSet))].sort(() => Math.random() - 0.5);
-                    let seqLength = Math.min(cfgSeq, uniqueSets.length);
-                    huntTargetSequence = uniqueSets.slice(0, seqLength).map(set => ({ birdSet: set, done: false }));
-                    currentSequenceIdx = 0;
-                }
+                huntTargetSet = birds[Math.floor(Math.random() * birds.length)].birdSet;
             }
         }
 

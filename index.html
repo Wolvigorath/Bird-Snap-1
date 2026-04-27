@@ -107,7 +107,7 @@
             </div>
         </div>
     </div>
-    <button onclick="startGame()">START GRY</button>
+    <button id="start-btn" onclick="startGame()" disabled>ŁADOWANIE...</button>
 </div>
 
 <div id="game-over-screen" class="screen">
@@ -181,11 +181,18 @@
     const WORLD_W = 3000;
     const WORLD_H = 1800;
 
-    let bgLoaded = false;
+   let bgLoaded = false;
     const bgImg = new Image();
-    bgImg.onload = () => { bgLoaded = true; if (!gameActive) drawScene(); };
+    bgImg.onload = () => { 
+        bgLoaded = true; 
+        const startBtn = document.getElementById('start-btn');
+        if (startBtn) {
+            startBtn.innerText = "START GRY";
+            startBtn.disabled = false;
+        }
+        if (!gameActive) drawScene(); 
+    };
     bgImg.src = "background.jpg";
-
     const birdSets = [];
     for(let i = 1; i <= 6; i++) {
         let p = new Image(); p.src = 'bird' + i + '.png';
@@ -369,7 +376,7 @@
     }
 
     function resetGame() {
-        score = 0; level = 1; daylight = 100; gameActive = true; spawnCooldown = 0; shutterState = 'idle'; shutterVal = 0;
+        score = 0; level = 1; daylight = 100; gameActive = true; spawnCooldown = 0; shutterState = 'opening_slow'; shutterVal = 1;
         scoreEl.innerText = "0"; levelEl.innerText = "POZIOM 1";
         gameOverScreen.style.display = 'none';
         ui.style.display = 'block';
@@ -562,13 +569,17 @@
                 ctx.restore();
             }
 
-            if (shutterState === 'closing') {
-                shutterVal += 0.25;
-                if (shutterVal >= 1) { shutterVal = 1; shutterState = 'opening'; }
-            } else if (shutterState === 'opening') {
-                shutterVal -= 0.10;
-                if (shutterVal <= 0) { shutterVal = 0; shutterState = 'idle'; }
-            }
+         // ANIMACJA MIGAWKI MUSI BYĆ POZA WARUNKIEM SEKWENCJI
+        if (shutterState === 'closing') {
+            shutterVal += 0.50; 
+            if (shutterVal >= 1) { shutterVal = 1; shutterState = 'opening'; }
+        } else if (shutterState === 'opening') {
+            shutterVal -= 0.10; 
+            if (shutterVal <= 0) { shutterVal = 0; shutterState = 'idle'; }
+        } else if (shutterState === 'opening_slow') {
+            shutterVal -= 0.02; // Bardzo wolne tempo otwierania na start (50 klatek)
+            if (shutterVal <= 0) { shutterVal = 0; shutterState = 'idle'; }
+        }
 
             if (shutterVal > 0) {
                 let maxR = Math.max(width, height);
